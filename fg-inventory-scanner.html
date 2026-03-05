@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FG Inventory Scanner</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f0f4f2;
+  --surface: #ffffff;
+  --surface2: #f5f7f6;
+  --border: #dde3e0;
+  --accent: #00a854;
+  --accent-dim: #00a85418;
+  --warn: #e84c1e;
+  --text: #1a2620;
+  --text-dim: #7a9088;
+  --mono: 'Share Tech Mono', monospace;
+  --sans: 'Barlow Condensed', sans-serif;
+}
+
+html, body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 60px;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, #1a1f1e 39px, #1a1f1e 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, #1a1f1e 39px, #1a1f1e 40px);
+  background-size: 40px 40px;
+}
+
+/* ── HEADER ── */
+header {
+  width: 100%;
+  background: var(--surface);
+  border-bottom: 2px solid var(--accent);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 30px #00e87a18;
+}
+
+.header-left { display: flex; align-items: center; gap: 12px; }
+
+.logo-icon {
+  width: 36px; height: 36px;
+  background: var(--accent);
+  display: grid; place-items: center;
+  clip-path: polygon(0 0, 85% 0, 100% 15%, 100% 100%, 15% 100%, 0 85%);
+}
+
+.logo-icon svg { width: 20px; height: 20px; }
+
+h1 {
+  font-family: var(--sans);
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1;
+}
+
+h1 span { color: var(--accent); }
+
+.header-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── MAIN WRAPPER ── */
+.wrapper {
+  width: 100%;
+  max-width: 480px;
+  padding: 20px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── CARDS ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  overflow: hidden;
+}
+
+.card-header {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-header-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.card-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  margin-left: auto;
+}
+
+.card-body { padding: 16px; }
+
+/* ── SCANNER ── */
+#reader {
+  width: 100% !important;
+  border-radius: 0 !important;
+  overflow: hidden;
+  border: none !important;
+}
+
+#reader video { width: 100% !important; }
+
+/* Override html5-qrcode styles */
+#reader__scan_region { background: #000 !important; }
+#reader__dashboard { background: var(--surface) !important; border-top: 1px solid var(--border) !important; }
+#reader__dashboard_section_swaplink,
+#reader__dashboard_section_csr button {
+  background: var(--accent) !important;
+  color: #000 !important;
+  border: none !important;
+  font-family: var(--sans) !important;
+  font-weight: 700 !important;
+  letter-spacing: 1px !important;
+  font-size: 13px !important;
+}
+
+#reader__filescan_input { display: none !important; }
+
+.scan-overlay {
+  position: relative;
+  background: #000;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-corner {
+  position: absolute;
+  width: 20px; height: 20px;
+  border-color: var(--accent);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 5;
+}
+.scan-corner.tl { top: 10px; left: 10px; border-width: 2px 0 0 2px; }
+.scan-corner.tr { top: 10px; right: 10px; border-width: 2px 2px 0 0; }
+.scan-corner.bl { bottom: 10px; left: 10px; border-width: 0 0 2px 2px; }
+.scan-corner.br { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+
+/* ── FORM FIELDS ── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+input, select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 15px;
+  padding: 12px 14px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+
+input:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+  color: #fff;
+}
+
+input::placeholder { color: var(--text-dim); }
+
+select option { background: var(--surface2); }
+
+.select-wrap {
+  position: relative;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+/* ── TRANSACTION TOGGLE ── */
+.toggle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.toggle-btn {
+  padding: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  position: relative;
+  overflow: hidden;
+}
+
+.toggle-btn.active-in {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: inset 0 0 20px #00e87a10;
+}
+
+.toggle-btn.active-out {
+  background: #ff6b3522;
+  border-color: var(--warn);
+  color: var(--warn);
+  box-shadow: inset 0 0 20px #ff6b3510;
+}
+
+/* ── FINAL EAN display ── */
+.final-ean-display {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 18px;
+  color: var(--accent);
+  letter-spacing: 3px;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  word-break: break-all;
+}
+
+.final-ean-display.empty { color: var(--text-dim); font-size: 13px; letter-spacing: 1px; }
+
+/* ── SAVE BUTTON ── */
+.save-btn {
+  width: 100%;
+  padding: 18px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-family: var(--sans);
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.save-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.4s;
+}
+
+.save-btn:hover::before { transform: translateX(100%); }
+.save-btn:hover { background: #00ff88; box-shadow: 0 0 30px #00e87a60; }
+.save-btn:active { transform: scale(0.98); }
+.save-btn:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; box-shadow: none; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 2px;
+  padding: 12px 24px;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+  z-index: 999;
+  white-space: nowrap;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast.error {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/* ── QTY row ── */
+.qty-row {
+  display: grid;
+  grid-template-columns: 1fr 80px;
+  gap: 8px;
+  align-items: end;
+}
+
+.qty-adj {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+}
+
+.qty-adj-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  transition: all 0.1s;
+}
+
+.qty-adj-btn:hover { border-color: var(--accent); color: var(--accent); }
+.qty-adj-btn:active { transform: scale(0.95); }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo-icon">
+      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="4" width="2" height="12" fill="#000"/>
+        <rect x="6" y="4" width="1" height="12" fill="#000"/>
+        <rect x="9" y="4" width="3" height="12" fill="#000"/>
+        <rect x="14" y="4" width="1" height="12" fill="#000"/>
+        <rect x="17" y="4" width="1" height="12" fill="#000"/>
+      </svg>
+    </div>
+    <div>
+      <h1>FG <span>SCAN</span></h1>
+      <div class="header-badge">INVENTORY CONTROL</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="header-badge" id="clock">--:--:--</div>
+    <div class="status-dot"></div>
+  </div>
+</header>
+
+<div class="wrapper">
+
+  <!-- SCANNER CARD -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-label">📷 Barcode Scanner</div>
+      <div class="card-num">UNIT_01</div>
+    </div>
+    <div class="card-body" style="padding:0;position:relative;">
+      <div class="scan-corner tl"></div>
+      <div class="scan-corner tr"></div>
+      <div class="scan-corner bl"></div>
+      <div class="scan-corner br"></div>
+      <div id="reader"></div>
+    </div>
+  </div>
+
+  <!-- EAN CARD -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-label">🔢 EAN Code</div>
+      <div class="card-num">STEP_01</div>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+      <div class="field">
+        <label>Raw EAN</label>
+        <input id="ean" placeholder="Scan or enter EAN..." oninput="generateFinalEAN()">
+      </div>
+      <div class="field">
+        <label>Platform</label>
+        <div class="select-wrap">
+          <select id="platform" onchange="generateFinalEAN()">
+            <option value="">— Select Platform —</option>
+            <option>Swiggy/Instamart</option>
+            <option>FBA</option>
+            <option>Zepto</option>
+            <option>Myntra</option>
+            <option>FBF</option>
+            <option>Blinkit</option>
+            <option>GoGear</option>
+          </select>
+          <div class="select-arrow">▼</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Final EAN (Generated)</label>
+        <div class="final-ean-display empty" id="final_ean_display">Awaiting input...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRANSACTION CARD -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-label">⚡ Transaction</div>
+      <div class="card-num">STEP_02</div>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+
+      <div class="field">
+        <label>Direction</label>
+        <div class="toggle-row">
+          <button class="toggle-btn active-in" id="btn-in" onclick="setTransaction('IN')">▲ IN</button>
+          <button class="toggle-btn" id="btn-out" onclick="setTransaction('OUT')">▼ OUT</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Quantity</label>
+        <div class="qty-row">
+          <input id="qty" type="number" placeholder="0" min="1" value="">
+          <div class="qty-adj">
+            <button class="qty-adj-btn" onclick="adjustQty(1)">＋</button>
+            <button class="qty-adj-btn" onclick="adjustQty(-1)">－</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SAVE -->
+  <button class="save-btn" id="saveBtn" onclick="saveData()">SAVE RECORD</button>
+
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- HIDDEN inputs for compatibility -->
+<input id="final_ean" type="hidden">
+<input id="transaction" type="hidden" value="IN">
+
+<script>
+
+const scriptURL = "https://script.google.com/a/macros/specialyou.in/s/AKfycbxpKsv5eEuMjZi9uJkpO2pKXSWHY-K7qQZ-5IZEtp8lvbaRmVOK2MsPINV0DWlfW0LZ/exec";
+
+// Clock
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toTimeString().slice(0,8);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Transaction toggle
+function setTransaction(val) {
+  document.getElementById('transaction').value = val;
+  const inBtn = document.getElementById('btn-in');
+  const outBtn = document.getElementById('btn-out');
+  inBtn.className = 'toggle-btn' + (val === 'IN' ? ' active-in' : '');
+  outBtn.className = 'toggle-btn' + (val === 'OUT' ? ' active-out' : '');
+}
+
+// Qty adjuster
+function adjustQty(delta) {
+  const el = document.getElementById('qty');
+  const current = parseInt(el.value) || 0;
+  el.value = Math.max(0, current + delta);
+}
+
+// Final EAN generator
+function generateFinalEAN() {
+  const ean = document.getElementById('ean').value.trim();
+  const platform = document.getElementById('platform').value;
+  let final_ean = '';
+
+  if (ean && platform) {
+    if (['FBF', 'Myntra', 'Blinkit', 'GoGear'].includes(platform))
+      final_ean = ean;
+    else if (platform === 'Swiggy/Instamart')
+      final_ean = ean + '-I';
+    else if (platform === 'FBA')
+      final_ean = ean + '-F';
+    else
+      final_ean = ean + '-' + platform.charAt(0);
+  }
+
+  document.getElementById('final_ean').value = final_ean;
+  const display = document.getElementById('final_ean_display');
+  if (final_ean) {
+    display.textContent = final_ean;
+    display.classList.remove('empty');
+  } else if (!ean && !platform) {
+    display.textContent = 'Awaiting input...';
+    display.classList.add('empty');
+  } else {
+    display.textContent = ean || 'Select platform...';
+    display.classList.add('empty');
+  }
+}
+
+// Toast
+function showToast(msg, isError = false) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast' + (isError ? ' error' : '') + ' show';
+  setTimeout(() => { toast.className = 'toast' + (isError ? ' error' : ''); }, 2800);
+}
+
+// Save
+function saveData() {
+  const ean = document.getElementById('ean').value.trim();
+  const platform = document.getElementById('platform').value;
+  const qty = document.getElementById('qty').value.trim();
+  const final_ean = document.getElementById('final_ean').value;
+
+  if (!ean) return showToast('EAN CODE REQUIRED', true);
+  if (!platform) return showToast('SELECT PLATFORM', true);
+  if (!qty || qty <= 0) return showToast('ENTER QUANTITY', true);
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = 'SAVING...';
+
+  fetch(scriptURL, {
+    method: 'POST',
+    body: JSON.stringify({
+      ean,
+      platform,
+      final_ean,
+      sku_name: '',
+      sku_code: '',
+      transaction: document.getElementById('transaction').value,
+      qty
+    })
+  })
+  .then(() => {
+    showToast('✓ RECORD SAVED');
+    document.getElementById('qty').value = '';
+  })
+  .catch(() => showToast('NETWORK ERROR', true))
+  .finally(() => {
+    btn.disabled = false;
+    btn.textContent = 'SAVE RECORD';
+  });
+}
+
+// QR Scanner
+function onScanSuccess(decodedText) {
+  document.getElementById('ean').value = decodedText;
+  generateFinalEAN();
+  // haptic if available
+  if (navigator.vibrate) navigator.vibrate(50);
+}
+
+new Html5QrcodeScanner(
+  'reader',
+  { fps: 10, qrbox: 220 }
+).render(onScanSuccess);
+
+</script>
+</body>
+</html>
